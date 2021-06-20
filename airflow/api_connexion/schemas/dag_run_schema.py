@@ -123,4 +123,7 @@ class DagRunsBatchFormSchema(Schema):
 dagrun_schema = DAGRunSchema()
 dagrun_collection_schema = DAGRunCollectionSchema()
 dagruns_batch_form_schema = DagRunsBatchFormSchema()
+<<<<<<< HEAD
 dagrun_set_state_schema = DAGStateSchema()
+=======
+>>>>>>> parent of 91e41df76... add schema for state update form
