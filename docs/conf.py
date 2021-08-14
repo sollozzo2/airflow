@@ -1,4 +1,3 @@
-# flake8: noqa
 # Disable Flake8 because of all the sphinx imports
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -47,9 +46,7 @@ except ImportError:
 
 import airflow
 from airflow.configuration import AirflowConfigParser, default_config_yaml
-from docs.exts.docs_build.third_party_inventories import (  # pylint: disable=no-name-in-module,wrong-import-order
-    THIRD_PARTY_INDEXES,
-)
+from docs.exts.docs_build.third_party_inventories import THIRD_PARTY_INDEXES
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'exts'))
 
@@ -65,7 +62,7 @@ if PACKAGE_NAME == 'apache-airflow':
     PACKAGE_DIR = os.path.join(ROOT_DIR, 'airflow')
     PACKAGE_VERSION = airflow.__version__
 elif PACKAGE_NAME.startswith('apache-airflow-providers-'):
-    from provider_yaml_utils import load_package_data  # pylint: disable=no-name-in-module
+    from provider_yaml_utils import load_package_data
 
     ALL_PROVIDER_YAMLS = load_package_data()
     try:
@@ -243,16 +240,16 @@ html_favicon = "../airflow/www/static/pin_32.png"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-if PACKAGE_NAME == 'apache-airflow':
-    html_static_path = ['apache-airflow/static']
+if PACKAGE_NAME in ['apache-airflow', 'helm-chart']:
+    html_static_path = [f'{PACKAGE_NAME}/static']
 else:
     html_static_path = []
 # A list of JavaScript filename. The entry must be a filename string or a
 # tuple containing the filename string and the attributes dictionary. The
 # filename must be relative to the html_static_path, or a full URI with
 # scheme like http://example.org/script.js.
-if PACKAGE_NAME == 'apache-airflow':
-    html_js_files = ['jira-links.js']
+if PACKAGE_NAME in ['apache-airflow', 'helm-chart']:
+    html_js_files = ['gh-jira-links.js']
 else:
     html_js_files = []
 if PACKAGE_NAME == 'apache-airflow':
@@ -503,6 +500,7 @@ autodoc_mock_imports = [
     'jira',
     'kubernetes',
     'msrestazure',
+    'oss2',
     'pandas',
     'pandas_gbq',
     'paramiko',
@@ -520,6 +518,7 @@ autodoc_mock_imports = [
     'slack_sdk',
     'smbclient',
     'snowflake',
+    'sqlalchemy-drill',
     'sshtunnel',
     'telegram',
     'tenacity',
@@ -632,6 +631,15 @@ autoapi_root = '_api'
 # TOC tree entry yourself.
 autoapi_add_toctree_entry = False
 
+# By default autoapi will include private members -- we don't want that!
+autoapi_options = [
+    'members',
+    'undoc-members',
+    'show-inheritance',
+    'show-module-summary',
+    'special-members',
+]
+
 # -- Options for ext.exampleinclude --------------------------------------------
 exampleinclude_sourceroot = os.path.abspath('..')
 
@@ -640,6 +648,11 @@ redirects_file = 'redirects.txt'
 
 # -- Options for sphinxcontrib-spelling ----------------------------------------
 spelling_word_list_filename = [os.path.join(CONF_DIR, 'spelling_wordlist.txt')]
+if PACKAGE_NAME == 'apache-airflow':
+    spelling_exclude_patterns = ['project.rst', 'changelog.rst']
+if PACKAGE_NAME == 'helm-chart':
+    spelling_exclude_patterns = ['changelog.rst']
+spelling_ignore_contributor_names = False
 
 # -- Options for sphinxcontrib.redoc -------------------------------------------
 # See: https://sphinxcontrib-redoc.readthedocs.io/en/stable/

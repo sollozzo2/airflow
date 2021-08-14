@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import os
 import subprocess
 import sys
@@ -33,7 +32,7 @@ os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "True"
 os.environ["AWS_DEFAULT_REGION"] = os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
 os.environ["CREDENTIALS_DIR"] = os.environ.get('CREDENTIALS_DIR') or "/files/airflow-breeze-config/keys"
 
-from tests.test_utils.perf.perf_kit.sqlalchemy import (  # noqa isort:skip # pylint: disable=wrong-import-position
+from tests.test_utils.perf.perf_kit.sqlalchemy import (  # noqa isort:skip
     count_queries,
     trace_queries,
 )
@@ -96,9 +95,9 @@ def trace_sql(request):
         if columns == ['num']:
             # It is very unlikely that the user wants to display only numbers, but probably
             # the user just wants to count the queries.
-            exit_stack.enter_context(count_queries(print_fn=pytest_print))  # pylint: disable=no-member
+            exit_stack.enter_context(count_queries(print_fn=pytest_print))
         elif any(c for c in ['time', 'trace', 'sql', 'parameters']):
-            exit_stack.enter_context(  # pylint: disable=no-member
+            exit_stack.enter_context(
                 trace_queries(
                     display_num='num' in columns,
                     display_time='time' in columns,
@@ -425,3 +424,145 @@ def app():
     from airflow.www import app
 
     return app.create_app(testing=True)
+
+
+@pytest.fixture
+def dag_maker(request):
+    """
+    The dag_maker helps us to create DAG & DagModel automatically.
+
+    You have to use the dag_maker as a context manager and it takes
+    the same argument as DAG::
+
+        with dag_maker(dag_id="mydag") as dag:
+            task1 = DummyOperator(task_id='mytask')
+            task2 = DummyOperator(task_id='mytask2')
+
+    If the DagModel you want to use needs different parameters than the one
+    automatically created by the dag_maker, you have to update the DagModel as below::
+
+        dag_maker.dag_model.is_active = False
+        session.merge(dag_maker.dag_model)
+        session.commit()
+
+    For any test you use the dag_maker, make sure to create a DagRun::
+
+        dag_maker.create_dagrun()
+
+    The dag_maker.create_dagrun takes the same arguments as dag.create_dagrun
+
+    """
+    from airflow.models import DAG, DagModel
+    from airflow.utils import timezone
+    from airflow.utils.session import provide_session
+    from airflow.utils.state import State
+
+    DEFAULT_DATE = timezone.datetime(2016, 1, 1)
+
+    class DagFactory:
+        def __enter__(self):
+            self.dag.__enter__()
+            return self.dag
+
+        def __exit__(self, type, value, traceback):
+            dag = self.dag
+            dag.__exit__(type, value, traceback)
+            if type is None:
+                dag.clear()
+                self.dag_model = DagModel(
+                    dag_id=dag.dag_id,
+                    next_dagrun=dag.start_date,
+                    is_active=True,
+                    is_paused=False,
+                    max_active_tasks=dag.max_active_tasks,
+                    has_task_concurrency_limits=False,
+                )
+                self.session.add(self.dag_model)
+                self.session.flush()
+
+        def create_dagrun(self, **kwargs):
+            dag = self.dag
+            defaults = dict(
+                run_id='test',
+                state=State.RUNNING,
+                execution_date=self.start_date,
+                start_date=self.start_date,
+            )
+            kwargs = {**defaults, **kwargs}
+            self.dag_run = dag.create_dagrun(**kwargs)
+            return self.dag_run
+
+        @provide_session
+        def __call__(self, dag_id='test_dag', session=None, **kwargs):
+            self.kwargs = kwargs
+            self.session = session
+            self.start_date = self.kwargs.get('start_date', None)
+            default_args = kwargs.get('default_args', None)
+            if default_args and not self.start_date:
+                if 'start_date' in default_args:
+                    self.start_date = default_args.get('start_date')
+            if not self.start_date:
+
+                if hasattr(request.module, 'DEFAULT_DATE'):
+                    self.start_date = getattr(request.module, 'DEFAULT_DATE')
+                else:
+                    self.start_date = DEFAULT_DATE
+            self.kwargs['start_date'] = self.start_date
+            self.dag = DAG(dag_id, **self.kwargs)
+            self.dag.fileloc = request.module.__file__
+            return self
+
+    return DagFactory()
+
+
+@pytest.fixture
+def create_dummy_dag(dag_maker):
+    """
+    This fixture creates a `DAG` with a single `DummyOperator` task.
+    DagRun and DagModel is also created.
+
+    Apart from the already existing arguments, any other argument in kwargs
+    is passed to the DAG and not to the DummyOperator task.
+
+    If you have an argument that you want to pass to the DummyOperator that
+    is not here, please use `default_args` so that the DAG will pass it to the
+    Task::
+
+        dag, task = create_dummy_dag(default_args={'start_date':timezone.datetime(2016, 1, 1)})
+
+    You cannot be able to alter the created DagRun or DagModel, use `dag_maker` fixture instead.
+    """
+    from airflow.operators.dummy import DummyOperator
+    from airflow.utils.types import DagRunType
+
+    def create_dag(
+        dag_id='dag',
+        task_id='op1',
+        task_concurrency=16,
+        pool='default_pool',
+        executor_config={},
+        trigger_rule='all_done',
+        on_success_callback=None,
+        on_execute_callback=None,
+        on_failure_callback=None,
+        on_retry_callback=None,
+        email=None,
+        **kwargs,
+    ):
+        with dag_maker(dag_id, **kwargs) as dag:
+            op = DummyOperator(
+                task_id=task_id,
+                task_concurrency=task_concurrency,
+                executor_config=executor_config,
+                on_success_callback=on_success_callback,
+                on_execute_callback=on_execute_callback,
+                on_failure_callback=on_failure_callback,
+                on_retry_callback=on_retry_callback,
+                email=email,
+                pool=pool,
+                trigger_rule=trigger_rule,
+            )
+        dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+        return dag, op
+
+    return create_dag

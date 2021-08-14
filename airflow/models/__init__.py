@@ -23,7 +23,7 @@ from airflow.models.dag import DAG, DagModel, DagTag
 from airflow.models.dagbag import DagBag
 from airflow.models.dagpickle import DagPickle
 from airflow.models.dagrun import DagRun
-from airflow.models.errors import ImportError  # pylint: disable=redefined-builtin
+from airflow.models.errors import ImportError
 from airflow.models.log import Log
 from airflow.models.pool import Pool
 from airflow.models.renderedtifields import RenderedTaskInstanceFields
@@ -33,5 +33,6 @@ from airflow.models.slamiss import SlaMiss
 from airflow.models.taskfail import TaskFail
 from airflow.models.taskinstance import TaskInstance, clear_task_instances
 from airflow.models.taskreschedule import TaskReschedule
+from airflow.models.trigger import Trigger
 from airflow.models.variable import Variable
 from airflow.models.xcom import XCOM_RETURN_KEY, XCom

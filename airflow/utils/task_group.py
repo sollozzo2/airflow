@@ -19,11 +19,13 @@
 A TaskGroup is a collection of closely related tasks on the same DAG that should be grouped
 together when the DAG is displayed graphically.
 """
+import copy
 import re
 from typing import TYPE_CHECKING, Dict, Generator, List, Optional, Sequence, Set, Union
 
 from airflow.exceptions import AirflowException, DuplicateTaskIdFound
 from airflow.models.taskmixin import TaskMixin
+from airflow.utils.helpers import validate_group_key
 
 if TYPE_CHECKING:
     from airflow.models.baseoperator import BaseOperator
@@ -48,6 +50,14 @@ class TaskGroup(TaskMixin):
     :type parent_group: TaskGroup
     :param dag: The DAG that this TaskGroup belongs to.
     :type dag: airflow.models.DAG
+    :param default_args: A dictionary of default parameters to be used
+        as constructor keyword parameters when initialising operators,
+        will override default_args defined in the DAG level.
+        Note that operators have the same hook, and precede those defined
+        here, meaning that if your dict contains `'depends_on_past': True`
+        here and `'depends_on_past': False` in the operator's call
+        `default_args`, the actual value will be `False`.
+    :type default_args: dict
     :param tooltip: The tooltip of the TaskGroup node when displayed in the UI
     :type tooltip: str
     :param ui_color: The fill color of the TaskGroup node when displayed in the UI
@@ -65,6 +75,7 @@ class TaskGroup(TaskMixin):
         prefix_group_id: bool = True,
         parent_group: Optional["TaskGroup"] = None,
         dag: Optional["DAG"] = None,
+        default_args: Optional[Dict] = None,
         tooltip: str = "",
         ui_color: str = "CornflowerBlue",
         ui_fgcolor: str = "#000",
@@ -73,6 +84,7 @@ class TaskGroup(TaskMixin):
         from airflow.models.dag import DagContext
 
         self.prefix_group_id = prefix_group_id
+        self.default_args = copy.deepcopy(default_args or {})
 
         if group_id is None:
             # This creates a root TaskGroup.
@@ -83,10 +95,15 @@ class TaskGroup(TaskMixin):
             self.used_group_ids: Set[Optional[str]] = set()
             self._parent_group = None
         else:
-            if not isinstance(group_id, str):
-                raise ValueError("group_id must be str")
-            if not group_id:
-                raise ValueError("group_id must not be empty")
+            if prefix_group_id:
+                # If group id is used as prefix, it should not contain spaces nor dots
+                # because it is used as prefix in the task_id
+                validate_group_key(group_id)
+            else:
+                if not isinstance(group_id, str):
+                    raise ValueError("group_id must be str")
+                if not group_id:
+                    raise ValueError("group_id must not be empty")
 
             dag = dag or DagContext.get_current_dag()
 
@@ -236,7 +253,7 @@ class TaskGroup(TaskMixin):
         """Set a TaskGroup/task/list of task upstream of this TaskGroup."""
         self._set_relative(task_or_task_list, upstream=True)
 
-    def __enter__(self):
+    def __enter__(self) -> "TaskGroup":
         TaskGroupContext.push_context_managed_task_group(self)
         return self
 
@@ -334,7 +351,7 @@ class TaskGroupContext:
     _previous_context_managed_task_groups: List[TaskGroup] = []
 
     @classmethod
-    def push_context_managed_task_group(cls, task_group: TaskGroup):  # pylint: disable=redefined-outer-name
+    def push_context_managed_task_group(cls, task_group: TaskGroup):
         """Push a TaskGroup into the list of managed TaskGroups."""
         if cls._context_managed_task_group:
             cls._previous_context_managed_task_groups.append(cls._context_managed_task_group)

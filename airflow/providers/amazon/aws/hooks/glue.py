@@ -64,7 +64,7 @@ class AwsGlueJobHook(AwsBaseHook):
         create_job_kwargs: Optional[dict] = None,
         *args,
         **kwargs,
-    ):  # pylint: disable=too-many-arguments
+    ):
         self.job_name = job_name
         self.desc = desc
         self.concurrent_run_limit = concurrent_run_limit
@@ -178,7 +178,7 @@ class AwsGlueJobHook(AwsBaseHook):
                     Name=self.job_name,
                     Description=self.desc,
                     LogUri=s3_log_path,
-                    Role=execution_role['Role']['RoleName'],
+                    Role=execution_role['Role']['Arn'],
                     ExecutionProperty={"MaxConcurrentRuns": self.concurrent_run_limit},
                     Command={"Name": "glueetl", "ScriptLocation": self.script_location},
                     MaxRetries=self.retry_limit,

@@ -105,7 +105,8 @@ class AwsGlueCrawlerHook(AwsBaseHook):
         """
         crawler_name = crawler_kwargs['Name']
         self.log.info("Creating crawler: %s", crawler_name)
-        return self.glue_client.create_crawler(**crawler_kwargs)['Crawler']['Name']
+        crawler = self.glue_client.create_crawler(**crawler_kwargs)
+        return crawler
 
     def start_crawler(self, crawler_name: str) -> dict:
         """
@@ -141,9 +142,7 @@ class AwsGlueCrawlerHook(AwsBaseHook):
                 self.log.info("crawler_config: %s", crawler)
                 crawler_status = crawler['LastCrawl']['Status']
                 if crawler_status in failed_status:
-                    raise AirflowException(
-                        f"Status: {crawler_status}"
-                    )  # pylint: disable=raising-format-tuple
+                    raise AirflowException(f"Status: {crawler_status}")
                 else:
                     metrics = self.glue_client.get_crawler_metrics(CrawlerNameList=[crawler_name])[
                         'CrawlerMetricsList'

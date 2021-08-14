@@ -19,6 +19,7 @@
 import signal
 from typing import Optional
 
+import psutil
 from sqlalchemy.exc import OperationalError
 
 from airflow.configuration import conf
@@ -74,20 +75,13 @@ class LocalTaskJob(BaseJob):
     def _execute(self):
         self.task_runner = get_task_runner(self)
 
-        # pylint: disable=unused-argument
         def signal_handler(signum, frame):
             """Setting kill signal handler"""
             self.log.error("Received SIGTERM. Terminating subprocesses")
-            self.on_kill()
-            self.task_instance.refresh_from_db()
-            if self.task_instance.state not in State.finished:
-                self.task_instance.set_state(State.FAILED)
-            self.task_instance._run_finished_callback(  # pylint: disable=protected-access
-                error="task received sigterm"
-            )
-            raise AirflowException("LocalTaskJob received SIGTERM signal")
+            self.task_runner.terminate()
+            self.handle_task_exit(128 + signum)
+            return
 
-        # pylint: enable=unused-argument
         signal.signal(signal.SIGTERM, signal_handler)
 
         if not self.task_instance.check_and_change_state_before_execution(
@@ -151,19 +145,22 @@ class LocalTaskJob(BaseJob):
             self.on_kill()
 
     def handle_task_exit(self, return_code: int) -> None:
-        """Handle case where self.task_runner exits by itself"""
+        """Handle case where self.task_runner exits by itself or is externally killed"""
+        # Without setting this, heartbeat may get us
+        self.terminating = True
         self.log.info("Task exited with return code %s", return_code)
         self.task_instance.refresh_from_db()
-        # task exited by itself, so we need to check for error file
+
+        if self.task_instance.state == State.RUNNING:
+            # This is for a case where the task received a SIGKILL
+            # while running or the task runner received a sigterm
+            self.task_instance.handle_failure(error=None)
+        # We need to check for error file
         # in case it failed due to runtime exception/error
         error = None
-        if self.task_instance.state == State.RUNNING:
-            # This is for a case where the task received a sigkill
-            # while running
-            self.task_instance.set_state(State.FAILED)
         if self.task_instance.state != State.SUCCESS:
             error = self.task_runner.deserialize_run_error()
-        self.task_instance._run_finished_callback(error=error)  # pylint: disable=protected-access
+        self.task_instance._run_finished_callback(error=error)
         if not self.task_instance.test_mode:
             if conf.getboolean('scheduler', 'schedule_after_task_execution', fallback=True):
                 self._run_mini_scheduler_on_child_tasks()
@@ -194,11 +191,18 @@ class LocalTaskJob(BaseJob):
                     fqdn,
                 )
                 raise AirflowException("Hostname of job runner does not match")
-
             current_pid = self.task_runner.process.pid
-            same_process = ti.pid == current_pid
-            if ti.pid is not None and not same_process:
-                self.log.warning("Recorded pid %s does not match " "the current pid %s", ti.pid, current_pid)
+            recorded_pid = ti.pid
+            same_process = recorded_pid == current_pid
+
+            if ti.run_as_user or self.task_runner.run_as_user:
+                recorded_pid = psutil.Process(ti.pid).ppid()
+                same_process = recorded_pid == current_pid
+
+            if recorded_pid is not None and not same_process:
+                self.log.warning(
+                    "Recorded pid %s does not match the current pid %s", recorded_pid, current_pid
+                )
                 raise AirflowException("PID of job runner does not match")
         elif self.task_runner.return_code() is None and hasattr(self.task_runner, 'process'):
             self.log.warning(
@@ -212,7 +216,7 @@ class LocalTaskJob(BaseJob):
                 # error file will not be populated and it must be updated by
                 # external source suck as web UI
                 error = self.task_runner.deserialize_run_error() or "task marked as failed externally"
-            ti._run_finished_callback(error=error)  # pylint: disable=protected-access
+            ti._run_finished_callback(error=error)
             self.terminating = True
 
     @provide_session

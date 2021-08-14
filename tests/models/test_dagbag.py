@@ -149,7 +149,7 @@ class TestDagBag(unittest.TestCase):
             def my_flow():
                 pass
 
-            my_dag = my_flow()  # noqa # pylint: disable=unused-variable
+            my_dag = my_flow()  # noqa
 
         source_lines = [line[12:] for line in inspect.getsource(create_dag).splitlines(keepends=True)[1:]]
         with NamedTemporaryFile("w+", encoding="utf8") as tf_1, NamedTemporaryFile(
@@ -246,7 +246,7 @@ class TestDagBag(unittest.TestCase):
         expected = {
             'example_bash_operator': 'airflow/example_dags/example_bash_operator.py',
             'example_subdag_operator': 'airflow/example_dags/example_subdag_operator.py',
-            'example_subdag_operator.section-1': 'airflow/example_dags/subdags/subdag.py',
+            'example_subdag_operator.section-1': 'airflow/example_dags/example_subdag_operator.py',
             'test_zip_dag': 'dags/test_zip.zip/test_zip.py',
         }
 
@@ -380,7 +380,7 @@ class TestDagBag(unittest.TestCase):
     def test_load_subdags(self):
         # Define Dag to load
         def standard_subdag():
-            import datetime  # pylint: disable=redefined-outer-name,reimported
+            import datetime
 
             from airflow.models import DAG
             from airflow.operators.dummy import DummyOperator
@@ -431,7 +431,7 @@ class TestDagBag(unittest.TestCase):
 
         # Define Dag to load
         def nested_subdags():
-            import datetime  # pylint: disable=redefined-outer-name,reimported
+            import datetime
 
             from airflow.models import DAG
             from airflow.operators.dummy import DummyOperator
@@ -507,11 +507,14 @@ class TestDagBag(unittest.TestCase):
         assert len(test_dag.subdags) == 6
 
         # Perform processing dag
-        dagbag, found_dags, _ = self.process_dag(nested_subdags)
+        dagbag, found_dags, filename = self.process_dag(nested_subdags)
 
         # Validate correctness
         # all dags from test_dag should be listed
         self.validate_dags(test_dag, found_dags, dagbag)
+
+        for dag in dagbag.dags.values():
+            assert dag.fileloc == filename
 
     def test_skip_cycle_dags(self):
         """
@@ -521,7 +524,7 @@ class TestDagBag(unittest.TestCase):
 
         # Define Dag to load
         def basic_cycle():
-            import datetime  # pylint: disable=redefined-outer-name,reimported
+            import datetime
 
             from airflow.models import DAG
             from airflow.operators.dummy import DummyOperator
@@ -551,7 +554,7 @@ class TestDagBag(unittest.TestCase):
 
         # Define Dag to load
         def nested_subdag_cycle():
-            import datetime  # pylint: disable=redefined-outer-name,reimported
+            import datetime
 
             from airflow.models import DAG
             from airflow.operators.dummy import DummyOperator
@@ -703,7 +706,9 @@ class TestDagBag(unittest.TestCase):
             )
             assert dagbag.import_errors == {}
 
-            dagbag.sync_to_db(session=session)
+            with self.assertLogs(level="ERROR") as cm:
+                dagbag.sync_to_db(session=session)
+            self.assertIn("SerializationError", "\n".join(cm.output))
 
             assert path in dagbag.import_errors
             err = dagbag.import_errors[path]

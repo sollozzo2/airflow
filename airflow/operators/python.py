@@ -18,6 +18,7 @@
 import inspect
 import os
 import pickle
+import shutil
 import sys
 import types
 import warnings
@@ -62,7 +63,7 @@ def task(python_callable: Optional[Callable] = None, multiple_outputs: Optional[
     """
     # To maintain backwards compatibility, we import the task object into this file
     # This prevents breakages in dags that use `from airflow.operators.python import task`
-    from airflow.decorators.python import python_task  # noqa # pylint: disable=unused-import
+    from airflow.decorators.python import python_task
 
     warnings.warn(
         """airflow.operators.python.task is deprecated. Please use the following instead
@@ -295,7 +296,7 @@ class PythonVirtualenvOperator(PythonOperator):
     }
     AIRFLOW_SERIALIZABLE_CONTEXT_KEYS = {'macros', 'conf', 'dag', 'dag_run', 'task'}
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         *,
         python_callable: Callable,
@@ -325,6 +326,8 @@ class PythonVirtualenvOperator(PythonOperator):
                 "Passing op_args or op_kwargs is not supported across different Python "
                 "major versions for PythonVirtualenvOperator. Please use string_args."
             )
+        if not shutil.which("virtualenv"):
+            raise AirflowException('PythonVirtualenvOperator requires virtualenv, please install it.')
         super().__init__(
             python_callable=python_callable,
             op_args=op_args,
@@ -338,8 +341,11 @@ class PythonVirtualenvOperator(PythonOperator):
         self.python_version = python_version
         self.use_dill = use_dill
         self.system_site_packages = system_site_packages
-        if not self.system_site_packages and self.use_dill and 'dill' not in self.requirements:
-            self.requirements.append('dill')
+        if not self.system_site_packages:
+            if 'lazy-object-proxy' not in self.requirements:
+                self.requirements.append('lazy-object-proxy')
+            if self.use_dill and 'dill' not in self.requirements:
+                self.requirements.append('dill')
         self.pickling_library = dill if self.use_dill else pickle
 
     def execute(self, context: Dict):

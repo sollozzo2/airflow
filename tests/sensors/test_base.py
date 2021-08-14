@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 import unittest
 from datetime import timedelta
 from unittest.mock import Mock, patch
@@ -420,8 +421,8 @@ class TestBaseSensor(unittest.TestCase):
         # poke returns False and AirflowRescheduleException is raised
         date1 = timezone.utcnow()
         with freeze_time(date1):
-            for date in self.dag.date_range(DEFAULT_DATE, end_date=DEFAULT_DATE):
-                TaskInstance(sensor, date).run(ignore_ti_state=True, test_mode=True)
+            for info in self.dag.iter_dagrun_infos_between(DEFAULT_DATE, DEFAULT_DATE):
+                TaskInstance(sensor, info.logical_date).run(ignore_ti_state=True, test_mode=True)
         tis = dr.get_task_instances()
         assert len(tis) == 2
         for ti in tis:

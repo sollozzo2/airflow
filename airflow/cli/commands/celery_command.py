@@ -180,10 +180,13 @@ def worker(args):
 
 
 @cli_utils.action_logging
-def stop_worker(args):  # pylint: disable=unused-argument
+def stop_worker(args):
     """Sends SIGTERM to Celery worker"""
     # Read PID from file
-    pid_file_path, _, _, _ = setup_locations(process=WORKER_PROCESS_NAME)
+    if args.pid:
+        pid_file_path = args.pid
+    else:
+        pid_file_path, _, _, _ = setup_locations(process=WORKER_PROCESS_NAME)
     pid = read_pid_from_pidfile(pid_file_path)
 
     # Send SIGTERM

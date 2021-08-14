@@ -30,21 +30,12 @@ from flask_appbuilder.forms import DynamicForm
 from flask_babel import lazy_gettext
 from flask_wtf import FlaskForm
 from wtforms import widgets
-from wtforms.fields import (
-    BooleanField,
-    Field,
-    IntegerField,
-    PasswordField,
-    SelectField,
-    StringField,
-    TextAreaField,
-)
+from wtforms.fields import Field, IntegerField, PasswordField, SelectField, StringField, TextAreaField
 from wtforms.validators import InputRequired, Optional
 
 from airflow.configuration import conf
 from airflow.utils import timezone
 from airflow.utils.types import DagRunType
-from airflow.www.validators import ValidJson
 from airflow.www.widgets import (
     AirflowDateTimePickerROWidget,
     AirflowDateTimePickerWidget,
@@ -130,56 +121,29 @@ class DateTimeWithNumRunsWithDagRunsForm(DateTimeWithNumRunsForm):
     execution_date = SelectField("DAG run")
 
 
-class DagRunForm(DynamicForm):
-    """Form for adding DAG Run"""
+class DagRunEditForm(DynamicForm):
+    """Form for editing DAG Run.
 
-    dag_id = StringField(lazy_gettext('Dag Id'), validators=[InputRequired()], widget=BS3TextFieldWidget())
-    start_date = DateTimeWithTimezoneField(lazy_gettext('Start Date'), widget=AirflowDateTimePickerWidget())
-    end_date = DateTimeWithTimezoneField(lazy_gettext('End Date'), widget=AirflowDateTimePickerWidget())
-    run_id = StringField(lazy_gettext('Run Id'), validators=[InputRequired()], widget=BS3TextFieldWidget())
-    state = SelectField(
-        lazy_gettext('State'),
-        choices=(
-            ('success', 'success'),
-            ('running', 'running'),
-            ('failed', 'failed'),
-        ),
-        widget=Select2Widget(),
-        validators=[InputRequired()],
-    )
-    execution_date = DateTimeWithTimezoneField(
-        lazy_gettext('Execution Date'),
-        widget=AirflowDateTimePickerWidget(),
-        validators=[InputRequired()],
-    )
-    external_trigger = BooleanField(lazy_gettext('External Trigger'))
-    conf = TextAreaField(
-        lazy_gettext('Conf'), validators=[ValidJson(), Optional()], widget=BS3TextAreaFieldWidget()
-    )
+    We don't actually want to allow editing, so everything is read-only here.
+    """
 
-    def populate_obj(self, item):
-        """Populates the attributes of the passed obj with data from the form’s fields."""
-        super().populate_obj(item)  # pylint: disable=no-member
-        item.run_type = DagRunType.from_run_id(item.run_id)
-        if item.conf:
-            item.conf = json.loads(item.conf)
-
-
-class DagRunEditForm(DagRunForm):
-    """Form for editing DAG Run"""
-
-    dag_id = StringField(lazy_gettext('Dag Id'), validators=[InputRequired()], widget=BS3TextFieldROWidget())
+    dag_id = StringField(lazy_gettext('Dag Id'), widget=BS3TextFieldROWidget())
     start_date = DateTimeWithTimezoneField(lazy_gettext('Start Date'), widget=AirflowDateTimePickerROWidget())
     end_date = DateTimeWithTimezoneField(lazy_gettext('End Date'), widget=AirflowDateTimePickerROWidget())
-    run_id = StringField(lazy_gettext('Run Id'), validators=[InputRequired()], widget=BS3TextFieldROWidget())
+    run_id = StringField(lazy_gettext('Run Id'), widget=BS3TextFieldROWidget())
+    state = StringField(lazy_gettext('State'), widget=BS3TextFieldROWidget())
     execution_date = DateTimeWithTimezoneField(
         lazy_gettext('Execution Date'),
         widget=AirflowDateTimePickerROWidget(),
-        validators=[InputRequired()],
     )
-    conf = TextAreaField(
-        lazy_gettext('Conf'), validators=[ValidJson(), Optional()], widget=BS3TextAreaROWidget()
-    )
+    conf = TextAreaField(lazy_gettext('Conf'), widget=BS3TextAreaROWidget())
+
+    def populate_obj(self, item):
+        """Populates the attributes of the passed obj with data from the form’s fields."""
+        super().populate_obj(item)
+        item.run_type = DagRunType.from_run_id(item.run_id)
+        if item.conf:
+            item.conf = json.loads(item.conf)
 
 
 class TaskInstanceEditForm(DynamicForm):

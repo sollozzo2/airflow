@@ -62,7 +62,7 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
     MAX_LINE_PER_PAGE = 1000
     LOG_NAME = 'Elasticsearch'
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         base_log_folder: str,
         filename_template: str,
@@ -204,9 +204,9 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
         # if we change the formatter style from '%' to '{' or '$', this will still work
         if self.json_format:
             try:
-                # pylint: disable=protected-access
+
                 return self.formatter._style.format(_ESJsonLogFmt(self.json_fields, **log_line.to_dict()))
-            except Exception:  # noqa pylint: disable=broad-except
+            except Exception:
                 pass
 
         # Just a safe-guard to preserve backwards-compatibility
@@ -237,7 +237,7 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
                     )
                 else:
                     metadata['max_offset'] = 0
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 self.log.exception('Could not get current log size with log_id: %s', log_id)
 
         logs = []
@@ -245,10 +245,15 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
             try:
 
                 logs = search[self.MAX_LINE_PER_PAGE * self.PAGE : self.MAX_LINE_PER_PAGE].execute()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 self.log.exception('Could not read log with log_id: %s', log_id)
 
         return logs
+
+    def emit(self, record):
+        if self.handler:
+            record.offset = int(time() * (10 ** 9))
+            self.handler.emit(record)
 
     def set_context(self, ti: TaskInstance) -> None:
         """
@@ -260,15 +265,14 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
 
         if self.json_format:
             self.formatter = JSONFormatter(
-                fmt=self.formatter._fmt,  # pylint: disable=protected-access
-                json_fields=self.json_fields,
+                fmt=self.formatter._fmt,
+                json_fields=self.json_fields + [self.offset_field],
                 extras={
                     'dag_id': str(ti.dag_id),
                     'task_id': str(ti.task_id),
                     'execution_date': self._clean_execution_date(ti.execution_date),
                     'try_number': str(ti.try_number),
                     'log_id': self._render_log_id(ti, ti.try_number),
-                    'offset': int(time() * (10 ** 9)),
                 },
             )
 
@@ -305,7 +309,7 @@ class ElasticsearchTaskHandler(FileTaskHandler, ExternalLoggingMixin, LoggingMix
         # Reopen the file stream, because FileHandler.close() would be called
         # first in logging.shutdown() and the stream in it would be set to None.
         if self.handler.stream is None or self.handler.stream.closed:
-            self.handler.stream = self.handler._open()  # pylint: disable=protected-access
+            self.handler.stream = self.handler._open()
 
         # Mark the end of file using end of log mark,
         # so we know where to stop while auto-tailing.

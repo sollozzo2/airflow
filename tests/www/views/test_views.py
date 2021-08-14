@@ -22,7 +22,7 @@ import pytest
 
 from airflow.configuration import initialize_config
 from airflow.plugins_manager import AirflowPlugin, EntryPointSource
-from airflow.www.views import get_safe_url, truncate_task_duration
+from airflow.www.views import get_key_paths, get_safe_url, get_value_from_path, truncate_task_duration
 from tests.test_utils.config import conf_vars
 from tests.test_utils.mock_plugins import mock_plugin_manager
 from tests.test_utils.www import check_content_in_response, check_content_not_in_response
@@ -116,6 +116,23 @@ def test_task_start_date_filter(admin_client, url, content):
 
 
 @pytest.mark.parametrize(
+    "url, content",
+    [
+        (
+            "/taskinstance/list/?_flt_3_dag_id=test_dag",
+            "List Task Instance",
+        )
+    ],
+    ids=["instance"],
+)
+def test_task_dag_id_equals_filter(admin_client, url, content):
+    resp = admin_client.get(url)
+    # We aren't checking the logic of the dag_id filter itself (that is built
+    # in to FAB) but simply that dag_id filter was run
+    check_content_in_response(content, resp)
+
+
+@pytest.mark.parametrize(
     "test_url, expected_url",
     [
         ("", "/home"),
@@ -168,7 +185,7 @@ def test_mark_task_instance_state(test_app):
     Test that _mark_task_instance_state() does all three things:
     - Marks the given TaskInstance as SUCCESS;
     - Clears downstream TaskInstances in FAILED/UPSTREAM_FAILED state;
-    - Set DagRun to RUNNING.
+    - Set DagRun to QUEUED.
     """
     from airflow.models import DAG, DagBag, TaskInstance
     from airflow.operators.dummy import DummyOperator
@@ -241,5 +258,28 @@ def test_mark_task_instance_state(test_app):
         # task_5 remains as SKIPPED
         assert get_task_instance(session, task_5).state == State.SKIPPED
         dagrun.refresh_from_db(session=session)
-        # dagrun should be set to RUNNING
-        assert dagrun.get_state() == State.RUNNING
+        # dagrun should be set to QUEUED
+        assert dagrun.get_state() == State.QUEUED
+
+
+TEST_CONTENT_DICT = {"key1": {"key2": "val2", "key3": "val3", "key4": {"key5": "val5"}}}
+
+
+@pytest.mark.parametrize(
+    "test_content_dict, expected_paths", [(TEST_CONTENT_DICT, ("key1.key2", "key1.key3", "key1.key4.key5"))]
+)
+def test_generate_key_paths(test_content_dict, expected_paths):
+    for key_path in get_key_paths(test_content_dict):
+        assert key_path in expected_paths
+
+
+@pytest.mark.parametrize(
+    "test_content_dict, test_key_path, expected_value",
+    [
+        (TEST_CONTENT_DICT, "key1.key2", "val2"),
+        (TEST_CONTENT_DICT, "key1.key3", "val3"),
+        (TEST_CONTENT_DICT, "key1.key4.key5", "val5"),
+    ],
+)
+def test_get_value_from_path(test_content_dict, test_key_path, expected_value):
+    assert expected_value == get_value_from_path(test_key_path, test_content_dict)

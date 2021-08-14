@@ -42,6 +42,7 @@ DEFAULT_SENSITIVE_FIELDS = frozenset(
         'password',
         'private_key',
         'secret',
+        'token',
     }
 )
 """Names of fields (Connection extra, Variable key name etc.) that are deemed sensitive"""
@@ -63,7 +64,7 @@ def should_hide_value_for_key(name):
     """Should the value for this given name (Variable name, or key in conn.extra_dejson) be hidden"""
     from airflow import settings
 
-    if name and settings.HIDE_SENSITIVE_VAR_CONN_FIELDS:
+    if isinstance(name, str) and settings.HIDE_SENSITIVE_VAR_CONN_FIELDS:
         name = name.strip().lower()
         return any(s in name for s in get_sensitive_variables_fields())
     return False
@@ -101,7 +102,12 @@ def _secrets_masker() -> "SecretsMasker":
     for flt in logging.getLogger('airflow.task').filters:
         if isinstance(flt, SecretsMasker):
             return flt
-    raise RuntimeError("No SecretsMasker found!")
+    raise RuntimeError(
+        "Logging Configuration Error! No SecretsMasker found! If you have custom logging, please make "
+        "sure you configure it taking airflow configuration as a base as explained at "
+        "https://airflow.apache.org/docs/apache-airflow/stable/logging-monitoring/logging-tasks.html"
+        "#advanced-configuration"
+    )
 
 
 class SecretsMasker(logging.Filter):
@@ -170,7 +176,6 @@ class SecretsMasker(logging.Filter):
         else:
             return item
 
-    # pylint: disable=too-many-return-statements
     def _redact(self, item: "RedactableItem", name: Optional[str], depth: int) -> "RedactableItem":
         # Avoid spending too much effort on redacting on deeply nested
         # structures. This also avoid infinite recursion if a structure has
@@ -200,7 +205,7 @@ class SecretsMasker(logging.Filter):
             else:
                 return item
         # I think this should never happen, but it does not hurt to leave it just in case
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             log.warning(
                 "Unable to redact %r, please report this via <https://github.com/apache/airflow/issues>. "
                 "Error was: %s: %s",
@@ -219,7 +224,6 @@ class SecretsMasker(logging.Filter):
         """
         return self._redact(item, name, depth=0)
 
-    # pylint: enable=too-many-return-statements
     def add_mask(self, secret: Union[str, dict, Iterable], name: str = None):
         """Add a new secret to be masked to this filter instance."""
         if isinstance(secret, dict):

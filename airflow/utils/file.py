@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def TemporaryDirectory(*args, **kwargs):  # pylint: disable=invalid-name
+def TemporaryDirectory(*args, **kwargs):
     """This function is deprecated. Please use `tempfile.TemporaryDirectory`"""
     import warnings
     from tempfile import TemporaryDirectory as TmpDir
@@ -41,7 +41,7 @@ def TemporaryDirectory(*args, **kwargs):  # pylint: disable=invalid-name
         DeprecationWarning,
         stacklevel=2,
     )
-    # pylint: disable=consider-using-with
+
     return TmpDir(*args, **kwargs)
 
 
@@ -73,6 +73,8 @@ def correct_maybe_zipped(fileloc):
     If the path contains a folder with a .zip suffix, then
     the folder is treated as a zip archive and path to zip is returned.
     """
+    if not fileloc:
+        return fileloc
     _, archive, _ = ZIP_REGEX.search(fileloc).groups()
     if archive and zipfile.is_zipfile(archive):
         return archive
@@ -91,7 +93,7 @@ def open_maybe_zipped(fileloc, mode='r'):
     if archive and zipfile.is_zipfile(archive):
         return io.TextIOWrapper(zipfile.ZipFile(archive, mode=mode).open(filename))
     else:
-        # pylint: disable=consider-using-with
+
         return open(fileloc, mode=mode)
 
 
@@ -195,7 +197,7 @@ def find_dag_file_paths(directory: Union[str, "pathlib.Path"], safe_mode: bool) 
                 continue
 
             file_paths.append(file_path)
-        except Exception:  # noqa pylint: disable=broad-except
+        except Exception:
             log.exception("Error while examining %s", file_path)
 
     return file_paths

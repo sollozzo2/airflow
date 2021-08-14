@@ -162,6 +162,7 @@ class TestPythonOperator(TestPythonBase):
         self.dag.create_dagrun(
             run_type=DagRunType.MANUAL,
             execution_date=DEFAULT_DATE,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             start_date=DEFAULT_DATE,
             state=State.RUNNING,
         )
@@ -199,6 +200,7 @@ class TestPythonOperator(TestPythonBase):
         self.dag.create_dagrun(
             run_type=DagRunType.MANUAL,
             execution_date=DEFAULT_DATE,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             start_date=DEFAULT_DATE,
             state=State.RUNNING,
         )
@@ -789,7 +791,7 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
     def test_no_system_site_packages(self):
         def f():
             try:
-                import funcsigs  # noqa: F401  # pylint: disable=redefined-outer-name,reimported,unused-import
+                import funcsigs  # noqa: F401
             except ImportError:
                 return True
             raise Exception
@@ -798,13 +800,13 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
 
     def test_system_site_packages(self):
         def f():
-            import funcsigs  # noqa: F401  # pylint: disable=redefined-outer-name,reimported,unused-import
+            import funcsigs  # noqa: F401
 
         self._run_as_operator(f, requirements=['funcsigs'], system_site_packages=True)
 
     def test_with_requirements_pinned(self):
         def f():
-            import funcsigs  # noqa: F401  # pylint: disable=redefined-outer-name,reimported
+            import funcsigs
 
             if funcsigs.__version__ != '0.4':
                 raise Exception
@@ -813,13 +815,13 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
 
     def test_unpinned_requirements(self):
         def f():
-            import funcsigs  # noqa: F401  # pylint: disable=redefined-outer-name,reimported,unused-import
+            import funcsigs  # noqa: F401
 
         self._run_as_operator(f, requirements=['funcsigs', 'dill'], system_site_packages=False)
 
     def test_range_requirements(self):
         def f():
-            import funcsigs  # noqa: F401  # pylint: disable=redefined-outer-name,reimported,unused-import
+            import funcsigs  # noqa: F401
 
         self._run_as_operator(f, requirements=['funcsigs>1.0', 'dill'], system_site_packages=False)
 
@@ -832,24 +834,24 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
 
     def test_python_2(self):
         def f():
-            {}.iteritems()  # pylint: disable=no-member
+            {}.iteritems()
 
         self._run_as_operator(f, python_version=2, requirements=['dill'])
 
     def test_python_2_7(self):
         def f():
-            {}.iteritems()  # pylint: disable=no-member
+            {}.iteritems()
             return True
 
         self._run_as_operator(f, python_version='2.7', requirements=['dill'])
 
     def test_python_3(self):
         def f():
-            import sys  # pylint: disable=reimported,unused-import,redefined-outer-name
+            import sys
 
             print(sys.version)
             try:
-                {}.iteritems()  # pylint: disable=no-member
+                {}.iteritems()
             except AttributeError:
                 return
             raise Exception
@@ -883,7 +885,7 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
 
     def test_string_args(self):
         def f():
-            global virtualenv_string_args  # pylint: disable=global-statement
+            global virtualenv_string_args
             print(virtualenv_string_args)
             if virtualenv_string_args[0] != virtualenv_string_args[2]:
                 raise Exception
@@ -929,6 +931,9 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
 
         self._run_as_operator(f, templates_dict={'ds': '{{ ds }}'})
 
+    # This tests might take longer than default 60 seconds as it is serializing a lot of
+    # context using dill (which is slow apparently).
+    @pytest.mark.execution_timeout(120)
     def test_airflow_context(self):
         def f(
             # basic
@@ -964,7 +969,7 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
             task,
             # other
             **context,
-        ):  # pylint: disable=unused-argument,too-many-arguments,too-many-locals
+        ):
             pass
 
         self._run_as_operator(f, use_dill=True, system_site_packages=True, requirements=None)
@@ -998,7 +1003,7 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
             prev_start_date_success,
             # other
             **context,
-        ):  # pylint: disable=unused-argument,too-many-arguments,too-many-locals
+        ):
             pass
 
         self._run_as_operator(
@@ -1028,7 +1033,7 @@ class TestPythonVirtualenvOperator(unittest.TestCase):
             yesterday_ds_nodash,
             # other
             **context,
-        ):  # pylint: disable=unused-argument,too-many-arguments,too-many-locals
+        ):
             pass
 
         self._run_as_operator(f, use_dill=True, system_site_packages=False, requirements=None)
@@ -1092,7 +1097,7 @@ class TestCurrentContext:
             new_context = {"ContextId": i}
             # Like 15 nested with statements
             ctx_obj = set_current_context(new_context)
-            ctx_obj.__enter__()  # pylint: disable=E1101
+            ctx_obj.__enter__()
             ctx_list.append(ctx_obj)
         for i in reversed(range(max_stack_depth)):
             # Iterate over contexts in reverse order - stack is LIFO

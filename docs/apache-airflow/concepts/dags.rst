@@ -337,7 +337,7 @@ However, this is just the default behaviour, and you can control it using the ``
 * ``none_failed``: All upstream tasks have not ``failed`` or ``upstream_failed`` - that is, all upstream tasks have succeeded or been skipped
 * ``none_failed_or_skipped``: All upstream tasks have not ``failed`` or ``upstream_failed``, and at least one upstream task has succeeded.
 * ``none_skipped``: No upstream task is in a ``skipped`` state - that is, all upstream tasks are in a ``success``, ``failed``, or ``upstream_failed`` state
-* ``dummy``: No dependencies at all, run this task at any time
+* ``always``: No dependencies at all, run this task at any time
 
 You can also combine this with the :ref:`concepts:depends-on-past` functionality if you wish.
 
@@ -440,6 +440,15 @@ Dependency relationships can be applied across all tasks in a TaskGroup with the
     task3 = DummyOperator(task_id="task3")
 
     group1 >> task3
+
+TaskGroup also supports ``default_args`` like DAG, it will overwrite the ``default_args`` in DAG level::
+
+    with DAG(dag_id='dag1', default_args={'start_date': datetime(2016, 1, 1), 'owner': 'dag'}):
+        with TaskGroup('group1', default_args={'owner': 'group'}):
+            task1 = DummyOperator(task_id='task1')
+            task2 = DummyOperator(task_id='task2', owner='task2')
+            print(task1.owner) # "group"
+            print(task2.owner) # "task2"
 
 If you want to see a more advanced use of TaskGroup, you can look at the ``example_task_group.py`` example DAG that comes with Airflow.
 

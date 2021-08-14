@@ -57,13 +57,16 @@ class DefaultHelpParser(argparse.ArgumentParser):
 
     def _check_value(self, action, value):
         """Override _check_value and check conditionally added command"""
-        executor = conf.get('core', 'EXECUTOR')
-        if value == 'celery' and executor not in (CELERY_EXECUTOR, CELERY_KUBERNETES_EXECUTOR):
-            message = f'celery subcommand works only with CeleryExecutor, your current executor: {executor}'
-            raise ArgumentError(action, message)
-        if value == 'kubernetes':
+        if action.dest == 'subcommand' and value == 'celery':
+            executor = conf.get('core', 'EXECUTOR')
+            if executor not in (CELERY_EXECUTOR, CELERY_KUBERNETES_EXECUTOR):
+                message = (
+                    f'celery subcommand works only with CeleryExecutor, your current executor: {executor}'
+                )
+                raise ArgumentError(action, message)
+        if action.dest == 'subcommand' and value == 'kubernetes':
             try:
-                import kubernetes.client  # noqa: F401 pylint: disable=unused-import
+                import kubernetes.client  # noqa: F401
             except ImportError:
                 message = (
                     'The kubernetes subcommand requires that you pip install the kubernetes python client.'
@@ -89,7 +92,6 @@ _UNSET = object()
 class Arg:
     """Class to keep information about command line argument"""
 
-    # pylint: disable=redefined-builtin,unused-argument,too-many-arguments
     def __init__(
         self,
         flags=_UNSET,
@@ -112,8 +114,6 @@ class Arg:
                 continue
 
             self.kwargs[k] = v
-
-    # pylint: enable=redefined-builtin,unused-argument,too-many-arguments
 
     def add_to_parser(self, parser: argparse.ArgumentParser):
         """Add this argument to an ArgumentParser"""
@@ -735,6 +735,13 @@ ARG_ALLOW_MULTIPLE = Arg(
 # sync-perm
 ARG_INCLUDE_DAGS = Arg(
     ("--include-dags",), help="If passed, DAG specific permissions will also be synced.", action="store_true"
+)
+
+# triggerer
+ARG_CAPACITY = Arg(
+    ("--capacity",),
+    type=str,
+    help="The maximum number of triggers that a Triggerer will run at one time.",
 )
 
 ALTERNATIVE_CONN_SPECS_ARGS = [
@@ -1383,7 +1390,7 @@ CELERY_COMMANDS = (
         name='stop',
         help="Stop the Celery worker gracefully",
         func=lazy_load_command('airflow.cli.commands.celery_command.stop_worker'),
-        args=(),
+        args=(ARG_PID,),
     ),
 )
 
@@ -1532,6 +1539,19 @@ airflow_commands: List[CLICommand] = [
         ),
     ),
     ActionCommand(
+        name='triggerer',
+        help="Start a triggerer instance",
+        func=lazy_load_command('airflow.cli.commands.triggerer_command.triggerer'),
+        args=(
+            ARG_PID,
+            ARG_DAEMON,
+            ARG_STDOUT,
+            ARG_STDERR,
+            ARG_LOG_FILE,
+            ARG_CAPACITY,
+        ),
+    ),
+    ActionCommand(
         name='version',
         help="Show the version",
         func=lazy_load_command('airflow.cli.commands.version_command.version'),
@@ -1650,7 +1670,7 @@ class AirflowHelpFormatter(argparse.HelpFormatter):
     """
 
     def _format_action(self, action: Action):
-        if isinstance(action, argparse._SubParsersAction):  # pylint: disable=protected-access
+        if isinstance(action, argparse._SubParsersAction):
 
             parts = []
             action_header = self._format_action_invocation(action)
@@ -1658,7 +1678,7 @@ class AirflowHelpFormatter(argparse.HelpFormatter):
             parts.append(action_header)
 
             self._indent()
-            subactions = action._get_subactions()  # pylint: disable=protected-access
+            subactions = action._get_subactions()
             action_subcommands, group_subcommands = partition(
                 lambda d: isinstance(ALL_COMMANDS_DICT[d.dest], GroupCommand), subactions
             )
@@ -1712,9 +1732,7 @@ def _sort_args(args: Iterable[Arg]) -> Iterable[Arg]:
     yield from sorted(optional, key=lambda x: get_long_option(x).lower())
 
 
-def _add_command(
-    subparsers: argparse._SubParsersAction, sub: CLICommand  # pylint: disable=protected-access
-) -> None:
+def _add_command(subparsers: argparse._SubParsersAction, sub: CLICommand) -> None:
     sub_proc = subparsers.add_parser(
         sub.name, help=sub.help, description=sub.description or sub.help, epilog=sub.epilog
     )

@@ -80,7 +80,7 @@ def acl_app(app):
             security_manager.add_user(
                 role=role,
                 username=username,
-                **kwargs,  # pylint: disable=not-a-mapping
+                **kwargs,
             )
 
     # FIXME: Clean up this block of code.....
@@ -145,7 +145,7 @@ def reset_dagruns():
 
 
 @pytest.fixture(autouse=True)
-def init_dagruns(acl_app, reset_dagruns):  # pylint: disable=unused-argument
+def init_dagruns(acl_app, reset_dagruns):
     acl_app.dag_bag.get_dag("example_bash_operator").create_dagrun(
         run_type=DagRunType.SCHEDULED,
         execution_date=DEFAULT_DATE,
@@ -228,7 +228,7 @@ def user_all_dags(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags(acl_app, user_all_dags):  # pylint: disable=unused-argument
+def client_all_dags(acl_app, user_all_dags):
     return client_with_login(
         acl_app,
         username="user_all_dags",
@@ -290,7 +290,7 @@ def user_all_dags_dagruns(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_dagruns(acl_app, user_all_dags_dagruns):  # pylint: disable=unused-argument
+def client_all_dags_dagruns(acl_app, user_all_dags_dagruns):
     return client_with_login(
         acl_app,
         username="user_all_dags_dagruns",
@@ -331,7 +331,7 @@ def user_all_dags_dagruns_tis(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_dagruns_tis(acl_app, user_all_dags_dagruns_tis):  # pylint: disable=unused-argument
+def client_all_dags_dagruns_tis(acl_app, user_all_dags_dagruns_tis):
     return client_with_login(
         acl_app,
         username="user_all_dags_dagruns_tis",
@@ -390,7 +390,7 @@ def user_all_dags_codes(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_codes(acl_app, user_all_dags_codes):  # pylint: disable=unused-argument
+def client_all_dags_codes(acl_app, user_all_dags_codes):
     return client_with_login(
         acl_app,
         username="user_all_dags_codes",
@@ -458,7 +458,7 @@ def user_all_dags_tis(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_tis(acl_app, user_all_dags_tis):  # pylint: disable=unused-argument
+def client_all_dags_tis(acl_app, user_all_dags_tis):
     return client_with_login(
         acl_app,
         username="user_all_dags_tis",
@@ -482,7 +482,7 @@ def user_all_dags_tis_xcom(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_tis_xcom(acl_app, user_all_dags_tis_xcom):  # pylint: disable=unused-argument
+def client_all_dags_tis_xcom(acl_app, user_all_dags_tis_xcom):
     return client_with_login(
         acl_app,
         username="user_all_dags_tis_xcom",
@@ -506,7 +506,7 @@ def user_dags_tis_logs(acl_app):
 
 
 @pytest.fixture()
-def client_dags_tis_logs(acl_app, user_dags_tis_logs):  # pylint: disable=unused-argument
+def client_dags_tis_logs(acl_app, user_dags_tis_logs):
     return client_with_login(
         acl_app,
         username="user_dags_tis_logs",
@@ -672,7 +672,7 @@ def user_all_dags_edit_tis(acl_app):
 
 
 @pytest.fixture()
-def client_all_dags_edit_tis(acl_app, user_all_dags_edit_tis):  # pylint: disable=unused-argument
+def client_all_dags_edit_tis(acl_app, user_all_dags_edit_tis):
     return client_with_login(
         acl_app,
         username="user_all_dags_edit_tis",
@@ -694,21 +694,9 @@ def test_failed_success(client_all_dags_edit_tis):
     check_content_in_response('Marked failed on 1 task instances', resp)
 
 
-@pytest.mark.parametrize(
-    "url, expected_content",
-    [
-        ("paused?dag_id=example_bash_operator&is_paused=false", "OK"),
-        ("refresh?dag_id=example_bash_operator", ""),
-    ],
-    ids=[
-        "paused",
-        "refresh",
-    ],
-)
-def test_post_success(dag_test_client, url, expected_content):
-    # post request failure won't test
-    resp = dag_test_client.post(url, follow_redirects=True)
-    check_content_in_response(expected_content, resp)
+def test_paused_post_success(dag_test_client):
+    resp = dag_test_client.post("paused?dag_id=example_bash_operator&is_paused=false", follow_redirects=True)
+    check_content_in_response("OK", resp)
 
 
 @pytest.fixture(scope="module")
@@ -725,7 +713,7 @@ def user_only_dags_tis(acl_app):
 
 
 @pytest.fixture()
-def client_only_dags_tis(acl_app, user_only_dags_tis):  # pylint: disable=unused-argument
+def client_only_dags_tis(acl_app, user_only_dags_tis):
     return client_with_login(
         acl_app,
         username="user_only_dags_tis",
@@ -771,9 +759,3 @@ def test_get_logs_with_metadata_failure(dag_faker_client):
     )
     check_content_not_in_response('"message":', resp)
     check_content_not_in_response('"metadata":', resp)
-
-
-def test_refresh_failure_for_viewer(viewer_client):
-    # viewer role can't refresh
-    resp = viewer_client.post('refresh?dag_id=example_bash_operator')
-    check_content_in_response('Redirecting', resp, resp_code=302)

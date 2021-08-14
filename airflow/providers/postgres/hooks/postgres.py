@@ -68,9 +68,9 @@ class PostgresHook(DbApiHook):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.schema: Optional[str] = kwargs.pop("schema", None)
         self.connection: Optional[Connection] = kwargs.pop("connection", None)
         self.conn: connection = None
+        self.schema: Optional[str] = kwargs.pop("schema", None)
 
     def _get_cursor(self, raw_cursor: str) -> CursorType:
         _cursor = raw_cursor.lower()
@@ -126,6 +126,7 @@ class PostgresHook(DbApiHook):
         So if users want to be aware when the input file does not exist,
         they have to check its existence by themselves.
         """
+        self.log.info("Running copy expert: %s, filename: %s", sql, filename)
         if not os.path.isfile(filename):
             with open(filename, 'w'):
                 pass
@@ -145,7 +146,6 @@ class PostgresHook(DbApiHook):
         """Dumps a database table into a tab-delimited file"""
         self.copy_expert(f"COPY {table} TO STDOUT", tmp_file)
 
-    # pylint: disable=signature-differs
     @staticmethod
     def _serialize_cell(cell: object, conn: Optional[connection] = None) -> object:
         """
